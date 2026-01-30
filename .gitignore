@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+
+# Virtual Environment
+myenv/
+venv/
+
+# IDE files
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+
+# Secrets
+.myenv
+service_account.json
+
