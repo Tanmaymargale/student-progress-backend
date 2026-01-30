@@ -1,0 +1,7 @@
+fastapi==0.111.0
+uvicorn[standard]==0.23.2
+pydantic==2.6.2
+gspread==5.9.1
+google-auth==2.22.0
+python-dotenv==1.0.0
+anyio==3.7.0
