@@ -5,3 +5,4 @@ google-auth
 google-auth-oauthlib
 gspread
 python-dotenv
+oauth2client==4.1.3
