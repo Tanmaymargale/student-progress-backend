@@ -5,12 +5,65 @@ from sheets import students_ws
 
 router = APIRouter()
 
-# Read header row from Google Sheet
-HEADERS = students_ws.row_values(1)
+# =========================
+# Headers (fixed structure)
+# =========================
+
+HEADERS = [
+    "registration_id",
+    "name",
+    "email",
+    "contact",
+    "degree",
+    "specialization",
+    "batch_id",
+    "fees",
+    "fees_paid",
+    "fees_pending",
+    "placed",
+    "linkedin",
+    "github",
+    "resume",
+]
+
+# =========================
+# Helpers
+# =========================
+
+def to_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    if not value:
+        return False
+
+    value = str(value).strip().lower()
+    return value in ["true", "yes", "1"]
+
+
+def normalize_row(row):
+    """Ensure row matches headers length"""
+    row = row + [""] * (len(HEADERS) - len(row))
+    return dict(zip(HEADERS, row))
+
+
+def find_student_row(registration_id: int):
+    rows = students_ws.get_all_values()
+
+    for i, row in enumerate(rows[1:], start=2):
+        if not row:
+            continue
+
+        if row[0].strip() == str(registration_id):
+            student = normalize_row(row)
+            student["placed"] = to_bool(student.get("placed"))
+            return i, student
+
+    return None, None
 
 
 # =========================
-# Pydantic Models
+# Models
 # =========================
 
 class StudentCreate(BaseModel):
@@ -47,107 +100,77 @@ class StudentUpdate(BaseModel):
 
 
 # =========================
-# Helper Function (FIXED)
-# =========================
-
-def find_student_row(registration_id: int):
-    all_rows = students_ws.get_all_values()  # RAW VALUES
-
-    try:
-        reg_col_index = HEADERS.index("registration_id")
-    except ValueError:
-        raise HTTPException(
-            status_code=500,
-            detail="registration_id column not found in sheet"
-        )
-
-    for i in range(1, len(all_rows)):  # skip header
-        row = all_rows[i]
-
-        if len(row) <= reg_col_index:
-            continue
-
-        sheet_reg_id = row[reg_col_index].strip()
-
-        if sheet_reg_id == str(registration_id):
-            student = dict(zip(HEADERS, row))
-            return i + 1, student  # Google Sheets row number
-
-    return None, None
-
-
-# =========================
-# CREATE Student
+# CREATE
 # =========================
 
 @router.post("/")
 def create_student(student: StudentCreate):
-
     row_number, _ = find_student_row(student.registration_id)
+
     if row_number:
-        raise HTTPException(
-            status_code=400,
-            detail="Student already exists"
-        )
+        raise HTTPException(400, "Student already exists")
 
-    student_data = student.model_dump()
+    data = student.model_dump()
+    data["placed"] = str(data["placed"]).upper()
 
-    row = [student_data.get(col, "") for col in HEADERS]
+    row = [data.get(col, "") for col in HEADERS]
     students_ws.append_row(row)
 
     return {"message": "Student added successfully"}
 
 
 # =========================
-# READ All Students
+# READ ALL
 # =========================
 
 @router.get("/")
 def get_all_students():
     rows = students_ws.get_all_values()
-    return [dict(zip(HEADERS, row)) for row in rows[1:]]
+
+    students = []
+
+    for row in rows[1:]:
+        student = normalize_row(row)
+        student["placed"] = to_bool(student.get("placed"))
+        students.append(student)
+
+    return students
 
 
 # =========================
-# READ One Student (SEARCH)
+# READ ONE
 # =========================
 
 @router.get("/{registration_id}")
 def get_student(registration_id: int):
     _, student = find_student_row(registration_id)
+
     if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found"
-        )
+        raise HTTPException(404, "Student not found")
+
     return student
 
 
 # =========================
-# UPDATE Student
+# UPDATE
 # =========================
 
 @router.patch("/{registration_id}")
-def update_student(
-    registration_id: int,
-    updated_data: StudentUpdate
-):
+def update_student(registration_id: int, updated: StudentUpdate):
     row_number, _ = find_student_row(registration_id)
+
     if not row_number:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found"
-        )
+        raise HTTPException(404, "Student not found")
 
-    update_dict = updated_data.model_dump(exclude_unset=True)
+    update_data = updated.model_dump(exclude_unset=True)
 
-    if not update_dict:
-        raise HTTPException(
-            status_code=400,
-            detail="No fields provided for update"
-        )
+    if not update_data:
+        raise HTTPException(400, "No fields to update")
 
-    for col, value in update_dict.items():
+    if "placed" in update_data:
+        update_data["placed"] = str(update_data["placed"]).upper()
+
+    for col, value in update_data.items():
         if col in HEADERS:
             col_index = HEADERS.index(col) + 1
             students_ws.update_cell(row_number, col_index, value)
@@ -156,17 +179,16 @@ def update_student(
 
 
 # =========================
-# DELETE Student
+# DELETE
 # =========================
 
 @router.delete("/{registration_id}")
 def delete_student(registration_id: int):
     row_number, _ = find_student_row(registration_id)
+
     if not row_number:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found"
-        )
+        raise HTTPException(404, "Student not found")
 
     students_ws.delete_rows(row_number)
+
     return {"message": "Student deleted successfully"}

@@ -1,25 +1,28 @@
-import os
-import json
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
-scope = [
-    "https://spreadsheets.google.com/feeds",
+# 🔹 Path to your service account JSON file
+SERVICE_ACCOUNT_FILE = "service_account.json"  # make sure this file is in your backend folder
+
+# 🔹 Define the scopes
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
-# ✅ Load credentials from Render environment variable
-service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-
-creds = ServiceAccountCredentials.from_json_keyfile_dict(
-    service_account_info,
-    scope
+# 🔹 Load credentials from JSON file
+creds = Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE,
+    scopes=SCOPES
 )
 
+# 🔹 Authorize gspread client
 client = gspread.authorize(creds)
 
+# 🔹 Open your spreadsheet
 sheet = client.open("Project_Progress_Management")
 
+# 🔹 Access worksheets
 students_ws = sheet.worksheet("students")
 batches_ws = sheet.worksheet("batches")
 assignment_ws = sheet.worksheet("assignment")
